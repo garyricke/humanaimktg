@@ -270,8 +270,9 @@
         document.getElementById('deploy-notice').style.display = 'block';
 
         // Preview the new content immediately
-        if (data.newContent) {
-          document.getElementById('content').innerHTML = data.newContent;
+        const contentEl = document.getElementById('content');
+        if (data.newContent && contentEl) {
+          contentEl.innerHTML = data.newContent;
         }
       }
     } catch (err) {
@@ -303,8 +304,9 @@
       } else {
         appendMsg('system', 'Reverted to previous version.');
         document.getElementById('deploy-notice').style.display = 'block';
-        if (data.newContent) {
-          document.getElementById('content').innerHTML = data.newContent;
+        const contentElUndo = document.getElementById('content');
+        if (data.newContent && contentElUndo) {
+          contentElUndo.innerHTML = data.newContent;
         }
         // trim last exchange from history
         _history = _history.slice(0, -2);

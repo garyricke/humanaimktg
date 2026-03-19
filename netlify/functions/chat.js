@@ -12,6 +12,17 @@
 
 const GITHUB_FILE = process.env.GITHUB_FILE_PATH || 'index.html';
 
+async function fetchWithRetry(url, options, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      if (i === retries) throw err;
+      await new Promise(r => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+}
+
 exports.handler = async (event) => {
   // ── CORS headers ──────────────────────────────────────────────────────────
   const headers = {
@@ -60,7 +71,7 @@ exports.handler = async (event) => {
 
   let currentHTML, fileSHA;
   try {
-    const ghRes = await fetch(ghBase, { headers: ghHeaders });
+    const ghRes = await fetchWithRetry(ghBase, { headers: ghHeaders });
     if (!ghRes.ok) throw new Error(`GitHub fetch failed: ${ghRes.status} ${await ghRes.text()}`);
     const ghData = await ghRes.json();
     currentHTML = Buffer.from(ghData.content, 'base64').toString('utf8');
@@ -72,7 +83,7 @@ exports.handler = async (event) => {
   // ── Undo: restore previous commit ─────────────────────────────────────────
   if (action === 'undo') {
     try {
-      const commitsRes = await fetch(
+      const commitsRes = await fetchWithRetry(
         `https://api.github.com/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/commits?path=${GITHUB_FILE}&per_page=2`,
         { headers: ghHeaders }
       );
@@ -81,7 +92,7 @@ exports.handler = async (event) => {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'No previous version to revert to.' }) };
       }
       const prevSHA = commits[1].sha;
-      const prevFileRes = await fetch(
+      const prevFileRes = await fetchWithRetry(
         `https://api.github.com/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/contents/${GITHUB_FILE}?ref=${prevSHA}`,
         { headers: ghHeaders }
       );
