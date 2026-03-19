@@ -2,6 +2,9 @@
   publish = "."
   functions = "netlify/functions"
 
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "GITHUB_FILE_PATH"
+
 [[headers]]
   for = "/*"
   [headers.values]
