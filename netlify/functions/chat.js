@@ -46,8 +46,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   }
 
-  if (action !== 'edit' || !message) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing action or message' }) };
+  if (action !== 'edit' && action !== 'undo') {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing or unknown action' }) };
   }
 
   // ── Fetch current HTML from GitHub ─────────────────────────────────────────
@@ -67,6 +67,48 @@ exports.handler = async (event) => {
     fileSHA = ghData.sha;
   } catch (err) {
     return { statusCode: 502, headers, body: JSON.stringify({ error: 'Could not fetch file from GitHub: ' + err.message }) };
+  }
+
+  // ── Undo: restore previous commit ─────────────────────────────────────────
+  if (action === 'undo') {
+    try {
+      const commitsRes = await fetch(
+        `https://api.github.com/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/commits?path=${GITHUB_FILE}&per_page=2`,
+        { headers: ghHeaders }
+      );
+      const commits = await commitsRes.json();
+      if (!commits[1]) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'No previous version to revert to.' }) };
+      }
+      const prevSHA = commits[1].sha;
+      const prevFileRes = await fetch(
+        `https://api.github.com/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/contents/${GITHUB_FILE}?ref=${prevSHA}`,
+        { headers: ghHeaders }
+      );
+      const prevFileData = await prevFileRes.json();
+      const prevHTML = Buffer.from(prevFileData.content, 'base64').toString('utf8');
+
+      const commitRes = await fetch(
+        `https://api.github.com/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/contents/${GITHUB_FILE}`,
+        {
+          method: 'PUT',
+          headers: { ...ghHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'undo: revert to previous version',
+            content: Buffer.from(prevHTML).toString('base64'),
+            sha: fileSHA,
+          }),
+        }
+      );
+      if (!commitRes.ok) throw new Error(await commitRes.text());
+
+      const contentMatch = prevHTML.match(/<!-- ═+\s*CONTENT[^═]*═+ -->([\s\S]*?)<!-- ═+\s*END CONTENT/);
+      const newContent = contentMatch ? contentMatch[1].replace(/<div id="content">|<\/div>\s*$/g, '').trim() : '';
+
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, newContent }) };
+    } catch (err) {
+      return { statusCode: 502, headers, body: JSON.stringify({ error: 'Undo failed: ' + err.message }) };
+    }
   }
 
   // ── Build conversation for Claude ──────────────────────────────────────────

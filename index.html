@@ -107,6 +107,13 @@
     }
     #send-btn:hover:not(:disabled) { background: #333; }
     #send-btn:disabled { background: #aaa; cursor: not-allowed; }
+    #undo-btn {
+      padding: 6px 12px; background: none; color: #888;
+      border: 1px solid #d1d1d1; border-radius: 8px; font-size: 0.85rem;
+      cursor: pointer; white-space: nowrap;
+    }
+    #undo-btn:hover:not(:disabled) { border-color: #888; color: #333; }
+    #undo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     #deploy-notice {
       padding: 10px 16px; background: #fffbe6; border-top: 1px solid #ffe58f;
       font-size: 0.82rem; color: #7a5900; display: none; text-align: center;
@@ -118,12 +125,14 @@
 <!-- ═══════════════════════════════════════════════
      CONTENT — this section is edited by the AI
      ═══════════════════════════════════════════════ -->
-<h1>Hello, World!</h1>
-<p>This is a demonstration page that can be edited conversationally using AI.
-   Click the pencil button in the bottom-right corner to open the editor,
-   then describe the changes you'd like to make.</p>
-<p>Try saying things like: <em>"Change the title to something about space exploration"</em>
-   or <em>"Add a section with three feature cards"</em>.</p>
+<div id="content">
+  <h1>Hello, World!</h1>
+  <p>This is a demonstration page that can be edited conversationally using AI.
+     Click the pencil button in the bottom-right corner to open the editor,
+     then describe the changes you'd like to make.</p>
+  <p>Try saying things like: <em>"Change the title to something about space exploration"</em>
+     or <em>"Add a section with three feature cards"</em>.</p>
+</div>
 <!-- ═══════════════════════════════════════════════
      END CONTENT
      ═══════════════════════════════════════════════ -->
@@ -158,6 +167,7 @@
       <div id="chat-input-area">
         <textarea id="user-message" placeholder="Describe the change you want…" rows="1"
                   onkeydown="msgKeydown(event)" oninput="autoResize(this)"></textarea>
+        <button id="undo-btn" onclick="undoLast()" title="Undo last change">↩ Undo</button>
         <button id="send-btn" onclick="sendMessage()">Send</button>
       </div>
     </div>
@@ -271,6 +281,41 @@
 
     document.getElementById('send-btn').disabled = false;
     document.getElementById('user-message').focus();
+  }
+
+  async function undoLast() {
+    const btn = document.getElementById('undo-btn');
+    btn.disabled = true;
+    document.getElementById('send-btn').disabled = true;
+    const thinking = appendMsg('assistant', '…reverting…');
+
+    try {
+      const res = await fetch('/.netlify/functions/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: _pw, action: 'undo' })
+      });
+      const data = await res.json();
+      thinking.remove();
+
+      if (!res.ok) {
+        appendMsg('error', 'Undo failed: ' + (data.error || res.status));
+      } else {
+        appendMsg('system', 'Reverted to previous version.');
+        document.getElementById('deploy-notice').style.display = 'block';
+        if (data.newContent) {
+          document.getElementById('content').innerHTML = data.newContent;
+        }
+        // trim last exchange from history
+        _history = _history.slice(0, -2);
+      }
+    } catch (err) {
+      thinking.remove();
+      appendMsg('error', 'Network error: ' + err.message);
+    }
+
+    btn.disabled = false;
+    document.getElementById('send-btn').disabled = false;
   }
 
   function appendMsg(role, text) {
