@@ -135,7 +135,8 @@ Rules:
 1. Return ONLY the new inner HTML for the content div — no wrapper tags, no markdown, no code fences.
 2. Preserve valid, accessible HTML.
 3. Be creative but stay faithful to the user's request.
-4. After the HTML, on a new line starting with "SUMMARY:", write one short sentence describing what you changed (this is shown to the user in the chat).
+4. For images, always use a specific, stable URL from Unsplash (format: https://images.unsplash.com/photo-PHOTOID?w=800) or another permanent URL. Never use random/placeholder image services like cataas.com, placekitten.com, picsum.photos, or any service that returns a different image on each request.
+5. After the HTML, on a new line starting with "SUMMARY:", write one short sentence describing what you changed (this is shown to the user in the chat).
 
 Format your response exactly like this:
 <new inner html here>
